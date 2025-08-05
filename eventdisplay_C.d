@@ -1,16 +1,12 @@
 
 # DO NOT DELETE
 
-./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/TChain.h
-./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/TTree.h
-./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/Compression.h
+./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/Rtypes.h
 ./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/RtypesCore.h
 ./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/ROOT/RConfig.hxx
 ./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/RVersion.h
 ./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/RConfigure.h
 ./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/DllImport.h
-./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/ROOT/TIOFeatures.hxx
-./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/Rtypes.h
 ./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/strtok.h
 ./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/strlcpy.h
 ./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/snprintf.h
@@ -18,6 +14,10 @@
 ./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/TSchemaHelper.h
 ./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/TIsAProxy.h
 ./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/TVirtualIsAProxy.h
+./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/TChain.h
+./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/TTree.h
+./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/Compression.h
+./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/ROOT/TIOFeatures.hxx
 ./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/TArrayD.h
 ./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/TArray.h
 ./eventdisplay_C.so: /home/frantisek/Software/root/root_install/include/TArrayI.h

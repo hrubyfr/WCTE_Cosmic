@@ -22,7 +22,7 @@ using std::cout;
 //#define WCSIM_SAVE_PHOTON_HISTORY
 
 // Simple example of reading a generated Root file
-int sample_readfile(const char *filename="../wcsim.root", TString events_tree_name="wcsimrootevent", const int verbose=2)
+int sample_readfile(const char *filename="../wcsim.root", TString events_tree_name="wcsimrootevent", const int verbose=1)
 {
   // Clear global scope
   //gROOT->Reset();
@@ -72,6 +72,9 @@ int sample_readfile(const char *filename="../wcsim.root", TString events_tree_na
       exit(9);
   }
   geotree->GetEntry(0);
+geo->Print();
+cout << "Number of PMTS in detector: " <<  geo->GetWCNumPMT() << endl;
+
 
   // Options tree - only need 1 "event"
   TTree *opttree = (TTree*)file->Get("wcsimRootOptionsT");
@@ -82,7 +85,7 @@ int sample_readfile(const char *filename="../wcsim.root", TString events_tree_na
     exit(9);
   }
   opttree->GetEntry(0);
-  opt->Print();
+  //opt->Print();
 
   // start with the main "subevent", as it contains most of the info
   // and always exists.
@@ -102,6 +105,10 @@ int sample_readfile(const char *filename="../wcsim.root", TString events_tree_na
     cout << "Event number " << ievent << "starting" << endl;
     // Read the event from the tree into the WCSimRootEvent instance
     tree->GetEntry(ievent);      
+    if (ievent == 0){
+    tree->Print();
+    }
+
     wcsimrootevent = wcsimrootsuperevent->GetTrigger(0);
     if(verbose){
       printf("********************************************************\n");

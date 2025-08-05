@@ -5,6 +5,7 @@
 #include <iostream>
 #include <stdio.h>     
 #include <stdlib.h>
+#include <string>
 
 #include "TTree.h"
 #include "TH1F.h"
@@ -28,12 +29,19 @@ using std::cout;
 
 
 void my_analysis(const char* filename = "../wcsim.root"){
+	TString help = filename;
+	TString plots_folder = "plots/" + help.Remove(0, 3);
+	if (gSystem->AccessPathName(plots_folder)) gSystem->Exec("mkdir -p " + plots_folder);
+	
+
 	TFile* file = new TFile(filename, "read");
 
 	if (!file || file->IsOpen() == false) {
 		cerr << "Error: could not open file " << filename << endl;
 	}
 	file->ls();
+
+	gSystem->cd(plots_folder);
 	
 	TTree* tree = (TTree*)file->Get("wcsimT");
 	tree->SetBranchStatus("wcsimrootevent2", 0);
@@ -84,7 +92,10 @@ void my_analysis(const char* filename = "../wcsim.root"){
 	TH1D* particle_types = new TH1D("particle types", "Types of particles in simulation; MC PID# ; counts", 1000, 0, 1000);
 	TH1D* parent_types = new TH1D("parent types", "Types of particles parents in simulation; MC PID# ; counts", 1000, 0, 1000);
 	TH1D* electron_energies = new TH1D("electron_energies", "Energy of electrons; Energy[GeV]; count", 500, 0, 2); 
-	TH1D* muon_energies = new TH1D("moun_energies", "Energy of muons; Energy[GeV]; count", 1000, 0, 200); 
+	TH1D* muon_energies = new TH1D("muon_energies", "Energy of muons; Energy[GeV]; count", 1000, 0, 200); 
+	TH1D* creator_processes = new TH1D("creator_processes", "Which creator process created an electron?;ID;count", 1000, 0, 1000); 
+	TH1D *h_hit_pmts = new TH1D("hit_pmts", "number of hit PMTs in low energy events;hit pmts;count", 50, 0, 1000);
+	TH1D *h_hit_pmts_2 = new TH1D("hit_pmts_2", "number of hit PMTs in events with higher energy;hit pmts;count", 50, 0, 1000);
 	cout << "File has " << tree->GetEntries() << " entries" << endl;
 
 
@@ -96,8 +107,9 @@ void my_analysis(const char* filename = "../wcsim.root"){
 		trig = wcsimrootsuperevent->GetTrigger(0);
 
 		int ntracks = trig->GetNtrack_slots();
-		cout << "There are " << ntracks << " tracks in event " << i << endl;
-
+		// cout << "There are " << ntracks << " tracks in event " << i << endl;
+		
+		double event_energy;
 		//TPolyLine3D* vis_track = new TPolyLine3D(ntracks + 1);
 		//vis_track->SetLineColor(kBlue);
 		for(int itrack = 0; itrack < ntracks; itrack++){
@@ -105,12 +117,22 @@ void my_analysis(const char* filename = "../wcsim.root"){
 			double particle_E = track->GetE() / 1000;	
 			int p_type = track->GetIpnu();
 			int parent = track->GetParenttype();
-			cout << "Track " << itrack << " is a particle type " << p_type << " with parent particle " << track->GetParenttype() << endl;
+			// cout << "Track " << itrack << " is a particle type " << p_type << " with parent particle " << track->GetParenttype() << endl;
 			//if (p_type != 13) cout << "WARNING, Different particle than muon in track!" << endl;
 			particle_types->Fill(p_type);
 			parent_types->Fill(parent);
 			if(p_type == 11) electron_energies->Fill(particle_E);
-			if(p_type == 13 && itrack == 0) muon_energies->Fill(particle_E);
+			if(p_type == 13 && itrack == 0) {muon_energies->Fill(particle_E); event_energy = particle_E;}
+			/* if(p_type == 13) cout << "Start and stop coordinates of muon in simulation: Start - (" << track->GetStart(0) << ", " << track->GetStart(1) << ", " << track->GetStart(2) << ") Stop - (" <<track->GetStop(0) << ", " << track->GetStop(1) << ", " << track->GetStop(2) << "), With energy " << track->GetE()/1000 << " GeV" << endl;  
+			if(p_type == 11 && "muMinusCaptureAtRest" == track->GetCreatorProcessName()) cout << "Start and stop coordinates of electron from muon capture at rest: Start - (" << track->GetStart(0) << ", " << track->GetStart(1) << ", " << track->GetStart(2) << ") Stop - (" <<track->GetStop(0) << ", " << track->GetStop(1) << ", " << track->GetStop(2) << "), With energy " << track->GetE()/1000 << " GeV" << endl;   */
+			double track_x = track->GetStart(0) - track->GetStop(0), track_y = track->GetStart(1) - track->GetStop(1), track_z = track->GetStart(2) - track->GetStop(2);
+			double track_distance = std::sqrt(track_x * track_x + track_y * track_y + track_z * track_z);
+			double track_dir_x = track->GetDir(0);
+			double track_dir_y = track->GetDir(1);
+			double track_dir_z = track->GetDir(2);
+			/* 
+			if(p_type == 13 && itrack > 1) cout << "Direction of the muon track: (" << track_dir_x << ", " << track_dir_y << ", " << track_dir_z << ") \t Muon track distance: " << track_distance << endl;  
+			if(p_type == 11 && "muMinusCaptureAtRest" == track->GetCreatorProcessName() && track->GetE() > 1) cout << "Direction of the electron: (" << track_dir_x << ", " << track_dir_y << ", " << track_dir_z << ")" << endl; */
 			//double_t start_x = track->GetStart(0);
 			//double_t start_y = track->GetStart(1);
 			//double_t start_z = track->GetStart(2);
@@ -130,54 +152,80 @@ void my_analysis(const char* filename = "../wcsim.root"){
 		//visualize_tracks->Draw("BOX");
 		//vis_track->Draw();
 		//cout << "Box has been drawn" << endl;
-
+		TString hits_folder = "events_pmt_hits/";
+		gSystem->Exec("mkdir -p " + hits_folder);
+		
+		TString h_name = "WCSim cosmic muon event " + std::to_string(i) + " Energy " + std::to_string(event_energy) + " GeV" + ";pmt_ID;charge";
+		TH1D *h_event_charge = new TH1D("h_event_charge", h_name, nPMT, 0, nPMT);
+		int n_hit_pmts = 0; 
 		for(int j = 0; j < trig-> GetNcherenkovdigihits(); j++){
 
 			WCSimRootCherenkovDigiHit* hit = (WCSimRootCherenkovDigiHit*) trig->GetCherenkovDigiHits()->At(j);
 			double charge = hit->GetQ();
 			int tubeID = hit->GetTubeId();
 			pmt_charge->Fill(tubeID, charge);
-			
+
+			h_event_charge->Fill(tubeID, charge);
+
 			WCSimRootPMT pmt =  geo->GetPMT(tubeID - 1);
 			int location = pmt.GetCylLoc();
 			//cout << "PMT " << tubeID - 1 << " is at X = " << pmt.GetPosition(0) << " Y = " << pmt.GetPosition(1) << " Z = " << pmt.GetPosition(2) << endl;
-		
+
 			pmt_type_charge->Fill(location, charge);
-			
+
 			mPMT_charge->Fill(pmt.GetmPMTNo(), charge);
-			
+
 			hit->GetmPMTId();
+			if (charge > 5) n_hit_pmts++;
 
 
 		}//loop over subevents end
-		//cout << "Superevent has " << wcsimrootsuperevent->GetNumberOfEvents() << " events" << endl;
+		 //cout << "Superevent has " << wcsimrootsuperevent->GetNumberOfEvents() << " events" << endl;
+		if (event_energy < 1.5) h_hit_pmts->Fill(n_hit_pmts);
+		else h_hit_pmts_2->Fill(n_hit_pmts);
 
+		if (gSystem->AccessPathName(hits_folder)){
+		TCanvas* c_event_charge = new TCanvas("", "", 1800, 900);
+		h_event_charge->Draw("hist");
+		c_event_charge->Print(hits_folder + Form("hit_%i.png", i));
+		delete c_event_charge;
+		delete h_event_charge;
+		}
 
 	}//end of loop over events
 	TCanvas* can = new TCanvas("", "", 1800, 900);
 	pmt_charge->Draw("hist");
-	can->Print("plots/pmt_charge.pdf");
-	can->Print("plots/pmt_charge.png");
+	can->Print("pmt_charge.pdf");
+	can->Print("pmt_charge.png");
 
 	pmt_type_charge->Draw("hist");
-	can->Print("plots/pmt_type_charge.pdf");
+	can->Print("pmt_type_charge.pdf");
 
 	mPMT_charge->Draw("hist");
-	can->Print("plots/mpmt_charge.pdf");
+	can->Print("mpmt_charge.pdf");
 
 	particle_types->GetXaxis()->SetRangeUser(0, 30);
 	particle_types->Draw();
-	can->Print("plots/particle_types.pdf");
-	
+	can->Print("particle_types.pdf");
+
 	parent_types->Draw();
-	can->Print("plots/parent_types.pdf");
+	can->Print("parent_types.pdf");
 
 	muon_energies->Draw();
-	can->Print("plots/muon_energies.pdf");
+	can->Print("muon_energies.pdf");
+	h_hit_pmts_2->Scale(1/h_hit_pmts_2->Integral());
 
-	electron_energies->GetXaxis()->SetRangeUser(0, 0.1);
+	h_hit_pmts->Scale(1/h_hit_pmts->Integral());
+	h_hit_pmts->Draw("hist");
+	h_hit_pmts_2->SetLineColor(kRed);
+	h_hit_pmts_2->Draw("hist same");
+	can->Print("h_hit_PMTS.png");
+	can->Print("h_hit_PMTS.pdf");
+
+	electron_energies->GetXaxis()->SetRangeUser(0, 2);
+	electron_energies->GetYaxis()->SetRangeUser(0, 50);
 	electron_energies->Draw();
-	can->Print("plots/electron_energies.pdf");
+	can->Print("electron_energies.pdf");
 	delete can;
 
 

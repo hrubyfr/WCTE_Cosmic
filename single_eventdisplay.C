@@ -1,5 +1,6 @@
 #include <Rtypes.h>
 #include <iostream>
+#include <ostream>
 #include <stdio.h>     
 #include <stdlib.h>
 
@@ -66,8 +67,9 @@ void MakeWhiteAxes(TH2D *h2){
 	h2->GetZaxis()->SetLabelColor(kWhite);
 	h2->GetZaxis()->SetTitleColor(kWhite);
 }
-int eventdisplay(const char * fname = "../wcsim.root")
+int single_eventdisplay(const char * fname = "../wcsim.root", const int evt_nr = 0)
 {
+	const int susp_event = evt_nr;
 	gStyle->SetOptStat(0);
 
 	TString help = fname;
@@ -164,7 +166,7 @@ int eventdisplay(const char * fname = "../wcsim.root")
 	}
 
 	double barrelCut = max_z-10;
-	TH2D* hist_event_display = new TH2D("Charges","Charges",250,-TMath::Pi()*max_r,TMath::Pi()*max_r,250,-max_z-2*max_r,max_z+2*max_r);
+	TH2D* hist_event_display = new TH2D("Charges","WCSim event display",250,-TMath::Pi()*max_r,TMath::Pi()*max_r,250,-max_z-2*max_r,max_z+2*max_r);
 	std::vector<std::vector<double>> eventDiplayXY;
 	for (int i=0;i<nPMTs_type0;i++)
 	{
@@ -193,61 +195,53 @@ int eventdisplay(const char * fname = "../wcsim.root")
 	}
 
 	std::vector<double> pmt_hit(nPMTs_type0,0.);
-	TH1D* hist_timetof = new TH1D("DigiTime-TOF","DigiTime-TOF",1000,-20,40);
-	TH1D* hist_timetof_true = new TH1D("TrueTime-TOF","TrueTime-TOF",1000,-1,5);
-	TH1D* hist_NDigiHits = new TH1D("NDigiHits","NDigiHits",2000,0,2000);
 	int count1pc = t->GetEntries()/100;
 	if (count1pc==0) count1pc=1;
-	for (long int nev=0;nev<t->GetEntries();nev++)
+	std::cout<<"Running "<<susp_event<<"-th event of "<<t->GetEntries()<<" events"<<std::endl;
+
+	delete wcsimrootsuperevent;
+	wcsimrootsuperevent = 0;  // EXTREMELY IMPORTANT
+
+	t->GetEntry(susp_event); // Load a suspicious event - looks like decay
+
+	wcsimrootevent = wcsimrootsuperevent->GetTrigger(0);
+
+	std::vector<double> triggerInfo = wcsimrootevent->GetTriggerInfo();
+	double triggerShift=0, triggerTime=0;
+	if(wcsimrootevent->GetTriggerType()!=kTriggerNoTrig && triggerInfo.size()>=3)
 	{
-		if (nev%(count1pc)==0) std::cout<<"Running "<<nev<<"-th event of total "<<t->GetEntries()<<" events"<<std::endl;
+		triggerShift = triggerInfo[1];
+		triggerTime = triggerInfo[2];
+	}
 
-		delete wcsimrootsuperevent;
-		wcsimrootsuperevent = 0;  // EXTREMELY IMPORTANT
+	int nhits = wcsimrootevent->GetNcherenkovdigihits(); 
 
-		t->GetEntry(nev);
-		wcsimrootevent = wcsimrootsuperevent->GetTrigger(0);
+	// Fill digi hit histogram
+	for (int i=0; i< nhits ; i++)
+	{
+		WCSimRootCherenkovDigiHit* wcsimrootcherenkovdigihit = (WCSimRootCherenkovDigiHit*) (wcsimrootevent->GetCherenkovDigiHits())->At(i);
+		int tubeNumber     = wcsimrootcherenkovdigihit->GetTubeId()-1;
+		double peForTube      = wcsimrootcherenkovdigihit->GetQ();
+		double time = wcsimrootcherenkovdigihit->GetT()+triggerTime-triggerShift;
 
-		std::vector<double> triggerInfo = wcsimrootevent->GetTriggerInfo();
-		double triggerShift=0, triggerTime=0;
-		if(wcsimrootevent->GetTriggerType()!=kTriggerNoTrig && triggerInfo.size()>=3)
+		pmt_hit[tubeNumber] += peForTube;
+
+	}
+
+	// Fill true hit histgram
+	int ncherenkovhits     = wcsimrootevent->GetNcherenkovhits();
+	TClonesArray *timeArray = wcsimrootevent->GetCherenkovHitTimes();
+	for (int i=0; i< ncherenkovhits ; i++)
+	{
+		WCSimRootCherenkovHit *wcsimrootcherenkovhit = (WCSimRootCherenkovHit*) (wcsimrootevent->GetCherenkovHits())->At(i);
+		int tubeNumber     = wcsimrootcherenkovhit->GetTubeID()-1;
+		int timeArrayIndex = wcsimrootcherenkovhit->GetTotalPe(0);
+		int peForTube      = wcsimrootcherenkovhit->GetTotalPe(1);
+		for (int idx = timeArrayIndex; idx<timeArrayIndex+peForTube; idx++)
 		{
-			triggerShift = triggerInfo[1];
-			triggerTime = triggerInfo[2];
-		}
-
-		int nhits = wcsimrootevent->GetNcherenkovdigihits(); 
-		hist_NDigiHits->Fill(nhits);
-
-		// Fill digi hit histogram
-		for (int i=0; i< nhits ; i++)
-		{
-			WCSimRootCherenkovDigiHit* wcsimrootcherenkovdigihit = (WCSimRootCherenkovDigiHit*) (wcsimrootevent->GetCherenkovDigiHits())->At(i);
-			int tubeNumber     = wcsimrootcherenkovdigihit->GetTubeId()-1;
-			double peForTube      = wcsimrootcherenkovdigihit->GetQ();
-			double time = wcsimrootcherenkovdigihit->GetT()+triggerTime-triggerShift;
-
-			pmt_hit[tubeNumber] += peForTube;
-
-			hist_timetof->Fill(time-pmt_tof[tubeNumber],peForTube);
-		}
-
-		// Fill true hit histgram
-		int ncherenkovhits     = wcsimrootevent->GetNcherenkovhits();
-		TClonesArray *timeArray = wcsimrootevent->GetCherenkovHitTimes();
-		for (int i=0; i< ncherenkovhits ; i++)
-		{
-			WCSimRootCherenkovHit *wcsimrootcherenkovhit = (WCSimRootCherenkovHit*) (wcsimrootevent->GetCherenkovHits())->At(i);
-			int tubeNumber     = wcsimrootcherenkovhit->GetTubeID()-1;
-			int timeArrayIndex = wcsimrootcherenkovhit->GetTotalPe(0);
-			int peForTube      = wcsimrootcherenkovhit->GetTotalPe(1);
-			for (int idx = timeArrayIndex; idx<timeArrayIndex+peForTube; idx++)
-			{
-				WCSimRootCherenkovHitTime * cht = (WCSimRootCherenkovHitTime*) timeArray->At(idx);
-				TVector3 endPos(cht->GetPhotonEndPos(0)/10.,cht->GetPhotonEndPos(1)/10.,cht->GetPhotonEndPos(2)/10.); // mm to cm
-				TVector3 endDir(cht->GetPhotonEndDir(0),cht->GetPhotonEndDir(1),cht->GetPhotonEndDir(2));
-				hist_timetof_true->Fill(cht->GetTruetime()-(endPos-vtx).Mag()/vg);
-			}
+			WCSimRootCherenkovHitTime * cht = (WCSimRootCherenkovHitTime*) timeArray->At(idx);
+			TVector3 endPos(cht->GetPhotonEndPos(0)/10.,cht->GetPhotonEndPos(1)/10.,cht->GetPhotonEndPos(2)/10.); // mm to cm
+			TVector3 endDir(cht->GetPhotonEndDir(0),cht->GetPhotonEndDir(1),cht->GetPhotonEndDir(2));
 		}
 	}
 
@@ -262,6 +256,8 @@ int eventdisplay(const char * fname = "../wcsim.root")
 	TCanvas* c1 = new TCanvas();
 	//hist_event_display->GetXaxis()->SetRangeUser(0, 150);
 	//hist_event_display->GetYaxis()->SetRangeUser(-350, -200);
+	c1->SetRightMargin(0.15);
+	hist_event_display->GetZaxis()->SetTitle("charge");
 	hist_event_display->Draw("colz");
 	double vtx_y = -vtx.x(), vtx_x = vtx.z(), vtx_z = vtx.y();
 	// Extrapolate beam target point on the other side of the tank
@@ -288,6 +284,8 @@ int eventdisplay(const char * fname = "../wcsim.root")
 		evtx = -vtx_y;
 		evty = -max_z-max_r+vtx_x;
 	}
+	std::cout << "vtx x: " << vtx_x<< " vtx_y: " << vtx_y << " vtx_z: " << vtx_z << std::endl; 
+	std::cout << "evtx: " << evtx << " evty: " << evty << std::endl; 
 	TMarker m1(evtx,evty,29);
 	m1.SetMarkerColor(kRed);
 	m1.Draw();
@@ -308,25 +306,14 @@ int eventdisplay(const char * fname = "../wcsim.root")
 		evtx = -target_y;
 		evty = -max_z-max_r+target_x;
 	}
+	std::cout << "beam direction is: " << BeamDir.x() << " " << BeamDir.y() << " " << BeamDir.z() << std::endl;
+	std::cout << "target is: " << target_x << " " << target_y << " " << target_z << std::endl;
+	std::cout << "evtx: " << evtx << " evty: " << evty << std::endl; 
 	TMarker m2(evtx,evty,29);
 	m2.SetMarkerColor(kWhite);
 	m2.Draw();
-	c1->SaveAs(Form("%sdisplay.pdf",prefix.c_str()));
+	c1->SaveAs(Form("Event_display_evt%i.pdf",evt_nr));
 
-	hist_timetof->GetXaxis()->SetTitle("Digi Time (ns)");
-	hist_timetof_true->GetXaxis()->SetTitle("Raw Time (ns)");
-	MakeWhiteAxis(hist_timetof);
-	hist_timetof->Draw("hist");
-	c1->SaveAs(Form("%stimetof.pdf",prefix.c_str()));
-
-	MakeWhiteAxis(hist_timetof_true);
-	hist_timetof_true->Draw("hist");
-	//c1->SetLogy();
-	c1->SaveAs(Form("%stimetof_true.pdf",prefix.c_str()));
-
-	MakeWhiteAxis(hist_NDigiHits);
-	hist_NDigiHits->Draw("hist");
-	c1->SaveAs(Form("%sNDigiHits.pdf",prefix.c_str()));
 
 	delete c1;
 	f->Close();
